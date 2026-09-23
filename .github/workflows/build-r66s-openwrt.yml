@@ -1,4 +1,4 @@
-name: build x86/64 openwrt
+name: build r66s openwrt
 
 on:
   workflow_call:
@@ -6,13 +6,7 @@ on:
       source:
         required: true
         type: string
-      target:
-        required: true
-        type: string
       ip_address:
-        required: true
-        type: string
-      partsize:
         required: true
         type: string
       toolchain:
@@ -30,26 +24,14 @@ on:
       source:
         description: '选择要编译的源码'
         required: true
-        default: 'immwrt'
+        default: 'immortalwrt'
         type: choice
-        options: ['immwrt', 'lean']
-
-      target:
-        description: '选择要编译的机型'
-        required: true
-        default: 'x86-64'
-        type: choice
-        options: ['x86-64']
+        options: ['immortalwrt', 'lede']
 
       ip_address:
         description: '设置默认IP地址'
         required: false
-        default: '10.0.0.2'
-
-      partsize:
-        description: '设置rootfs大小'
-        required: false
-        default: '800'
+        default: '10.0.0.1'
 
       toolchain:
         description: '使用toolchain缓存'
@@ -71,16 +53,15 @@ on:
 
 jobs:
   build:
-    name: build ${{inputs.target}} ${{inputs.source}}
+    name: build r66s ${{inputs.source}}
     runs-on: ubuntu-24.04
 
     env:
       IP_ADDRESS: ${{inputs.ip_address}}
-      PART_SIZE: ${{inputs.partsize}}
       TOOLCHAIN: ${{inputs.toolchain}}
-      CONFIG_FILE: configs/${{inputs.target}}-${{inputs.source}}.config
+      CONFIG_FILE: configs/${{inputs.source}}-r66s.config
       DIY_SCRIPT: ${{inputs.source}}.sh
-      RELEASE_TAG: ${{inputs.target}}-${{inputs.source}}
+      RELEASE_TAG: r66s-${{inputs.source}}
       UPLOAD_ARTIFACT: ${{inputs.artifact}}
       UPLOAD_RELEASE: ${{inputs.release}}
       TZ: Asia/Shanghai
@@ -88,21 +69,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@main
-
-      - name: Check Server Performance
-        run: |
-          echo "警告⚠"
-          echo "分配的服务器性能有限，若选择的插件过多，务必注意CPU性能！"
-          echo -e "已知CPU型号(降序): 7763，8370C，8272CL，8171M，E5-2673\n"
-          echo "==========================CPU信息=========================="
-          echo "CPU物理数量: $(cat /proc/cpuinfo | grep "physical id" | sort | uniq | wc -l)"
-          echo "CPU线程数量: $(nproc)"
-          echo -e "CPU型号信息:$(cat /proc/cpuinfo | grep -m1 name | awk -F: '{print $2}')\n"
-          echo "==========================内存信息=========================="
-          echo "已安装内存详细信息:"
-          echo -e "$(sudo lshw -short -C memory | grep GiB)\n"
-          echo "==========================硬盘信息=========================="
-          echo "硬盘数量: $(ls /dev/sd* | grep -v [1-9] | wc -l)" && df -hT
 
       - name: Initialization Environment
         env:
@@ -139,7 +105,8 @@ jobs:
           sudo chown -R runner:runner /workdir && df -hT
 
       - name: Load Custom Script
-        run: chmod +x $DIY_SCRIPT && ./$DIY_SCRIPT
+        run: |
+          chmod +x $DIY_SCRIPT && ./$DIY_SCRIPT
 
       - name: Compile Toolchain
         if: env.REBUILD_TOOLCHAIN == 'true'
@@ -198,7 +165,7 @@ jobs:
           cat config.buildinfo
           cp -rf $OPENWRT_PATH/bin/packages/* packages
           tar -zcf packages.tar.gz packages
-          sleep 3s && rm -rf packages sha256sums *.buildinfo *.bin *.json *rootfs.img.gz *targz-rootfs.tar.gz
+          sleep 3s && rm -rf packages sha256sums *.buildinfo *.json *rootfs.img.gz
           echo "FIRMWARE_PATH=$PWD" >> $GITHUB_ENV
 
       - name: Upload Firmware To Artifact
@@ -219,7 +186,7 @@ jobs:
           token: ${{secrets.GITHUB_TOKEN}}
           artifacts: ${{env.FIRMWARE_PATH}}/*
           body: |
-            **This is ${{env.SOURCE_REPO}} firmware for ${{env.DEVICE_TARGET}}**
+            **This is ${{env.SOURCE_REPO}} firmware for FastRhino R66S (${{env.DEVICE_TARGET}})**
             ### 📒 固件信息
             - 💻 平台架构: ${{env.DEVICE_TARGET}}
             - ⚽ 固件源码: ${{env.REPO_URL}}

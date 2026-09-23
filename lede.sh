@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# LEDE (coolsnowwolf) — FastRhino R66S 编译脚本
+
 # 打包toolchain目录
 if [[ "$REBUILD_TOOLCHAIN" = 'true' ]]; then
     cd $OPENWRT_PATH
@@ -218,9 +220,9 @@ main() {
 # 拉取编译源码
 clone_source_code() {
     # 设置编译源码与分支
-    REPO_URL="https://github.com/immortalwrt/immortalwrt"
+    REPO_URL="https://github.com/coolsnowwolf/lede"
     echo "REPO_URL=$REPO_URL" >> $GITHUB_ENV
-    REPO_BRANCH="openwrt-25.12"
+    REPO_BRANCH="master"
     echo "REPO_BRANCH=$REPO_BRANCH" >> $GITHUB_ENV
 
     # 拉取编译源码
@@ -229,6 +231,10 @@ clone_source_code() {
     ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
     [ -d openwrt ] && cd openwrt || exit
     echo "OPENWRT_PATH=$PWD" >> $GITHUB_ENV
+
+    # 使用 coolsnowwolf/luci master 分支
+    sed -i '/luci/d' feeds.conf.default
+    sed -i '1a src-git luci https://github.com/coolsnowwolf/luci.git;master' feeds.conf.default
 }
 
 # 设置环境变量
@@ -304,41 +310,30 @@ add_custom_packages() {
     [ -d "$destination_dir" ] || mkdir -p "$destination_dir"
 
     # 基础插件
-    clone_dir https://github.com/sirpdboy/luci-app-adguardhome luci-app-adguardhome
-    clone_dir https://github.com/sirpdboy/luci-app-ddns-go ddns-go luci-app-ddns-go
-    clone_all https://github.com/sbwml/luci-app-openlist2
-    clone_all https://github.com/sbwml/luci-app-mosdns
+    git_clone https://github.com/kongfl888/luci-app-adguardhome
+    clone_all lua https://github.com/sirpdboy/luci-app-ddns-go
+    clone_all v5-lua https://github.com/sbwml/luci-app-mosdns
     git_clone https://github.com/sbwml/packages_lang_golang golang
+    git_clone lede https://github.com/pymumu/luci-app-smartdns
+    git_clone https://github.com/pymumu/openwrt-smartdns smartdns
+    git_clone https://github.com/ximiTech/luci-app-msd_lite
+    git_clone https://github.com/ximiTech/msd_lite
     clone_all https://github.com/linkease/istore-ui
     clone_all https://github.com/linkease/istore luci
-    clone_all https://github.com/brvphoenix/luci-app-wrtbwmon
-    clone_all https://github.com/brvphoenix/wrtbwmon
 
     # 科学上网插件
-    # clone_all https://github.com/fw876/helloworld
+    clone_all https://github.com/fw876/helloworld
     clone_all https://github.com/Openwrt-Passwall/openwrt-passwall-packages
     clone_all https://github.com/Openwrt-Passwall/openwrt-passwall
     clone_all https://github.com/Openwrt-Passwall/openwrt-passwall2
     clone_dir https://github.com/vernesong/OpenClash luci-app-openclash
-    clone_all https://github.com/nikkinikki-org/OpenWrt-nikki
-    clone_all https://github.com/nikkinikki-org/OpenWrt-momo
-    clone_dir https://github.com/QiuSimons/luci-app-daed daed luci-app-daed
-    git_clone https://github.com/immortalwrt/homeproxy luci-app-homeproxy
 
     # Themes
-    git_clone https://github.com/kiddin9/luci-theme-edge
-    git_clone https://github.com/jerrykuku/luci-theme-argon
-    git_clone https://github.com/jerrykuku/luci-app-argon-config
-    git_clone https://github.com/eamonxg/luci-theme-aurora
-    git_clone https://github.com/eamonxg/luci-app-aurora-config
-    git_clone https://github.com/sirpdboy/luci-theme-kucat
-    git_clone https://github.com/sirpdboy/luci-app-kucat-config
-
-    # 晶晨宝盒
-    clone_all https://github.com/ophub/luci-app-amlogic
-    sed -i "s|firmware_repo.*|firmware_repo 'https://github.com/$GITHUB_REPOSITORY'|g" $destination_dir/luci-app-amlogic/root/etc/config/amlogic
-    # sed -i "s|kernel_path.*|kernel_path 'https://github.com/ophub/kernel'|g" $destination_dir/luci-app-amlogic/root/etc/config/amlogic
-    sed -i "s|ARMv8|$RELEASE_TAG|g" $destination_dir/luci-app-amlogic/root/etc/config/amlogic
+    git_clone 18.06 https://github.com/kiddin9/luci-theme-edge
+    git_clone 18.06 https://github.com/jerrykuku/luci-theme-argon
+    git_clone 18.06 https://github.com/jerrykuku/luci-app-argon-config
+    clone_dir https://github.com/xiaoqingfengATGH/luci-theme-infinityfreedom luci-theme-infinityfreedom-ng
+    clone_dir https://github.com/haiibo/packages luci-theme-opentomcat
 
     # 修复Makefile路径
     find "$destination_dir" -type f -name "Makefile" | xargs sed -i \
@@ -357,7 +352,7 @@ add_custom_packages() {
 
 # 加载个人设置
 apply_custom_settings() {
-    local drv_path pbuf_path
+    local orig_version
 
     [ -e "$GITHUB_WORKSPACE/files" ] && mv "$GITHUB_WORKSPACE/files" files
 
@@ -368,55 +363,17 @@ apply_custom_settings() {
     fi
 
     # 修改默认ip地址
-    [ "$IP_ADDRESS" ] && sed -i '/lan) ipad/s/".*"/"'"$IP_ADDRESS"'"/' package/base-files/files/bin/config_generate
-
-    # 更改默认shell为zsh
-    # sed -i 's/\/bin\/ash/\/usr\/bin\/zsh/g' package/base-files/files/etc/passwd
+    [ "$IP_ADDRESS" ] && sed -i '/lan) ipad/s/".*"/"'"$IP_ADDRESS"'"/' package/base-files/*/bin/config_generate
 
     # ttyd免登录
     sed -i 's|/bin/login|/bin/login -f root|g' feeds/packages/utils/ttyd/files/ttyd.config
 
-    # 设置root用户密码为password
-    sed -i 's/root:::0:99999:7:::/root:$1$V4UetPzk$CYXluq4wUazHjmCDBCqXF.::0:99999:7:::/g' package/base-files/files/etc/shadow
-
     # 更改argon主题背景
     cp -f $GITHUB_WORKSPACE/images/bg1.jpg feeds/luci/themes/luci-theme-argon/htdocs/luci-static/argon/img/bg1.jpg
 
-    # 删除主题默认设置
-    # find $destination_dir/luci-theme-*/ -type f -name '*luci-theme-*' -exec sed -i '/set luci.main.mediaurlbase/d' {} +
-
-    # 设置nlbwmon独立菜单
-    sed -i 's/services\/nlbw/nlbw/g; /path/s/admin\///g' feeds/luci/applications/luci-app-nlbwmon/root/usr/share/luci/menu.d/luci-app-nlbwmon.json
-    sed -i 's/services\///g' feeds/luci/applications/luci-app-nlbwmon/htdocs/luci-static/resources/view/nlbw/config.js
-
-    # 修改NAS菜单名称
-    for lang in zh-cn zh_Hans; do
-        file="feeds/luci/applications/luci-app-samba4/po/$lang/samba4.po"
-        if [ -f "$file" ]; then
-            echo "" >> "$file"
-            echo 'msgid "NAS"' >> "$file"
-            echo 'msgstr "网络存储"' >> "$file"
-        fi
-    done
-
-    # 修改qca-nss-drv启动顺序
-    drv_path="feeds/nss_packages/qca-nss-drv/files/qca-nss-drv.init"
-    if [ -f "$drv_path" ]; then
-        sed -i 's/START=.*/START=85/g' "$drv_path"
-    fi
-
-    # 修改qca-nss-pbuf启动顺序
-    pbuf_path="package/kernel/mac80211/files/qca-nss-pbuf.init"
-    if [ -f "$pbuf_path" ]; then
-        sed -i 's/START=.*/START=86/g' "$pbuf_path"
-    fi
-
-    # 移除attendedsysupgrade
-    find "feeds/luci/collections" -name "Makefile" | while read -r makefile; do
-        if grep -q "luci-app-attendedsysupgrade" "$makefile"; then
-            sed -i "/luci-app-attendedsysupgrade/d" "$makefile"
-        fi
-    done
+    # 修改版本为编译日期
+    orig_version=$(awk -F "'" '/DISTRIB_REVISION=/{print $2}' package/lean/default-settings/files/zzz-default-settings)
+    sed -i "s/$orig_version/R$(date +%y.%-m.%-d)/g" package/lean/default-settings/files/zzz-default-settings
 }
 
 # 更新配置文件
