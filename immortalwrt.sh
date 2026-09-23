@@ -369,9 +369,6 @@ apply_custom_settings() {
     # 设置root用户密码为password
     sed -i 's/root:::0:99999:7:::/root:$1$V4UetPzk$CYXluq4wUazHjmCDBCqXF.::0:99999:7:::/g' package/base-files/files/etc/shadow
 
-    # 更改argon主题背景
-    cp -f $GITHUB_WORKSPACE/images/bg1.jpg feeds/luci/themes/luci-theme-argon/htdocs/luci-static/argon/img/bg1.jpg
-
     # 移除attendedsysupgrade
     find "feeds/luci/collections" -name "Makefile" | while read -r makefile; do
         if grep -q "luci-app-attendedsysupgrade" "$makefile"; then
